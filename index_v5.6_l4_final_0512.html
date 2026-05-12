@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GRAYLIGHT Studio Fusion V3.15</title>
+    <title>灰光实验室 | GrayLight Lab</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" as="style"
@@ -508,7 +508,7 @@
             <canvas id="main-canvas" class="absolute pointer-events-none" style="display: none;"></canvas>
             <div id="placeholder"
                 class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <div class="text-7xl font-black shimmer-text mb-2">TECHSUN STUDIO</div>
+                <div class="text-7xl font-black shimmer-text mb-2">GRAYLIGHT LAB</div>
                 <div class="text-[10px] tracking-[1.5em] opacity-20 uppercase">Ready For Creation</div>
             </div>
         </div>
@@ -769,6 +769,8 @@
                 div.querySelector('.clear-keying-btn').onclick = (e) => {
                     e.stopPropagation();
                     layer.maskColor = '#000000'; layer.maskRGB = [0, 0, 0]; layer.tolerance = 10;
+                    // 🚨 Req 42 补全：同步重置缩略图视口
+                    layer.pScale = 1; layer.pOffset = { x: 0, y: 0 };
                     renderCanvas(); updateUI();
                 };
 
@@ -830,7 +832,17 @@
                 pCanvas.onpointerdown = (e) => {
                     if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
                     pCanvas.setPointerCapture(e.pointerId); pDrag = true; pLast = { x: e.clientX, y: e.clientY };
-                    const r = pCanvas.getBoundingClientRect(), mx = (e.clientX - r.left) * (pCanvas.width / r.width), my = (e.clientY - r.top) * (pCanvas.height / r.height);
+                };
+                pCanvas.onwheel = (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    layer.pScale = Math.max(0.5, Math.min(50, layer.pScale * (e.deltaY < 0 ? 1.1 : 0.9)));
+                };
+                pCanvas.onpointermove = (e) => {
+                    const r = pCanvas.getBoundingClientRect();
+                    const mx = (e.clientX - r.left) * (pCanvas.width / r.width);
+                    const my = (e.clientY - r.top) * (pCanvas.height / r.height);
+
+                    // 🚨 Req 38：实时色值探测逻辑
                     const baseW = (ratio > pCanvas.width / pCanvas.height) ? pCanvas.width : (pCanvas.height * ratio);
                     const baseH = (ratio > pCanvas.width / pCanvas.height) ? (pCanvas.width / ratio) : pCanvas.height;
                     const drawX = (pCanvas.width - baseW * layer.pScale) / 2 + layer.pOffset.x;
@@ -842,21 +854,19 @@
                         const tmpC = document.createElement('canvas'); tmpC.width = 1; tmpC.height = 1;
                         const tCtx = tmpC.getContext('2d'); tCtx.drawImage(layer.img, imgX, imgY, 1, 1, 0, 0, 1, 1);
                         const p = tCtx.getImageData(0, 0, 1, 1).data;
-                        layer.maskColor = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1).toUpperCase();
-                        layer.maskRGB = [p[0], p[1], p[2]]; if (layer.tolerance === 0) layer.tolerance = 10;
-                        div.querySelector('.hex-input').value = layer.maskColor;
-                        div.querySelector('.hex-input').previousElementSibling.style.background = layer.maskColor;
-                        renderCanvas();
+                        const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1).toUpperCase();
+                        // 仅在非按下状态下执行实时探测回显，按下时则执行正式吸色
+                        if (!pDrag) {
+                            div.querySelector('.hex-input').value = hex;
+                            div.querySelector('.hex-input').previousElementSibling.style.background = hex;
+                        } else {
+                            layer.maskColor = hex; layer.maskRGB = [p[0], p[1], p[2]];
+                            if (layer.tolerance === 0) layer.tolerance = 10;
+                            div.querySelector('.hex-input').value = hex;
+                            div.querySelector('.hex-input').previousElementSibling.style.background = hex;
+                            renderCanvas();
+                        }
                     }
-                };
-                pCanvas.onwheel = (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    layer.pScale = Math.max(0.5, Math.min(50, layer.pScale * (e.deltaY < 0 ? 1.1 : 0.9)));
-                };
-                pCanvas.onpointermove = (e) => {
-                    const r = pCanvas.getBoundingClientRect();
-                    const mx = (e.clientX - r.left) * (pCanvas.width / r.width);
-                    const my = (e.clientY - r.top) * (pCanvas.height / r.height);
 
                     // 放大镜位置跟随鼠标，并记录采样坐标
                     mag.style.display = 'block';
