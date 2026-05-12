@@ -567,22 +567,9 @@
         const layers = [];
         const layerMap = new WeakMap();
         const canvas = document.getElementById('main-canvas');
-        const viewport = document.getElementById('viewport');
-        const abTrack = document.getElementById('ab-track');
-        const abSelection = document.getElementById('ab-selection');
-        const abHandleStart = document.getElementById('ab-handle-start');
-        const abHandleEnd = document.getElementById('ab-handle-end');
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const rateNum = document.getElementById('rate-num');
-        const rateSlider = document.getElementById('rate-slider');
-        const timelineNum = document.getElementById('timeline-num');
-        const timelineSlider = document.getElementById('timeline-slider');
-        const layerList = document.getElementById('layer-list');
-
         const gl = canvas.getContext('webgl', { premultipliedAlpha: true, antialias: true });
 
         function resize() {
-            // 物理分辨率由 renderCanvas 根据素材动态锁定，此处仅同步 Viewport
             gl.viewport(0, 0, canvas.width, canvas.height);
         }
         window.addEventListener('resize', () => { resize(); updateABUI(); });
