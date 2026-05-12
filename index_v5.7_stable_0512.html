@@ -836,26 +836,6 @@
                 pCanvas.onpointerdown = (e) => {
                     if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
                     pCanvas.setPointerCapture(e.pointerId); pDrag = true; pLast = { x: e.clientX, y: e.clientY };
-                    
-                    const r = pCanvas.getBoundingClientRect(), mx = (e.clientX - r.left) * (pCanvas.width / r.width), my = (e.clientY - r.top) * (pCanvas.height / r.height);
-                    const baseW = (ratio > pCanvas.width / pCanvas.height) ? pCanvas.width : (pCanvas.height * ratio);
-                    const baseH = (ratio > pCanvas.width / pCanvas.height) ? (pCanvas.width / ratio) : pCanvas.height;
-                    const drawX = (pCanvas.width - baseW * layer.pScale) / 2 + layer.pOffset.x;
-                    const drawY = (pCanvas.height - baseH * layer.pScale) / 2 + layer.pOffset.y;
-                    const imgX = Math.floor(((mx - drawX) / (baseW * layer.pScale)) * layer.img.width);
-                    const imgY = Math.floor(((my - drawY) / (baseH * layer.pScale)) * layer.img.height);
-
-                    if (imgX >= 0 && imgX < layer.img.width && imgY >= 0 && imgY < layer.img.height) {
-                        sampleCtx.clearRect(0,0,1,1);
-                        sampleCtx.drawImage(layer.img, imgX, imgY, 1, 1, 0, 0, 1, 1);
-                        const p = sampleCtx.getImageData(0, 0, 1, 1).data;
-                        const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1).toUpperCase();
-                        layer.maskColor = hex; layer.maskRGB = [p[0], p[1], p[2]];
-                        if (layer.tolerance === 0) layer.tolerance = 10;
-                        div.querySelector('.hex-input').value = hex;
-                        div.querySelector('.hex-input').previousElementSibling.style.background = hex;
-                        renderCanvas();
-                    }
                 };
                 pCanvas.onwheel = (e) => {
                     e.preventDefault(); e.stopPropagation();
