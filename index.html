@@ -1037,7 +1037,11 @@
                 img.src = URL.createObjectURL(file);
             });
         }
-        document.getElementById('dropzone').onclick = () => document.getElementById('file-input').click();
+        const dropzone = document.getElementById('dropzone');
+        dropzone.onclick = () => document.getElementById('file-input').click();
+        dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('drag-active'); };
+        dropzone.ondragleave = () => dropzone.classList.remove('drag-active');
+        dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('drag-active'); handleFiles(e.dataTransfer.files); };
         document.getElementById('file-input').onchange = (e) => { handleFiles(e.target.files); e.target.value = ''; };
         const getPos = (e) => { const r = abTrack.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
         let dragMode = null;
