@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>16-bit TIFF 打包小工具 | GrayLight Pack Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.min.js"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;900&display=block" rel="stylesheet">
+
+    <style>
+        :root {
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.35);
+            --easing: cubic-bezier(0.4, 0, 0.2, 1);
+            --spring: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+            --surface: #0a0a0a;
+            --panel-bg: rgba(10, 10, 12, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4), 0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
+        }
+
+        body {
+            background-color: var(--surface);
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        .aurora-bg {
+            position: fixed;
+            inset: -50%;
+            z-index: -1;
+            opacity: 0.6;
+            background: radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 45%),
+                        radial-gradient(circle at 85% 85%, rgba(147, 51, 234, 0.08) 0%, transparent 45%);
+            filter: blur(120px);
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(40px);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            box-shadow: var(--glass-shadow);
+            transition: all 0.4s var(--easing);
+        }
+
+        .glass-panel:hover {
+            border-color: rgba(59, 130, 246, 0.2);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5), 0 1px 1px 0 rgba(255, 255, 255, 0.08) inset;
+        }
+
+        .dropzone {
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            transition: all 0.3s var(--easing);
+            cursor: pointer;
+        }
+
+        .dropzone.drag-active {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.04);
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: scale(0.99);
+        }
+
+        .btn-glow {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s var(--easing);
+        }
+
+        .btn-glow::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s var(--easing);
+        }
+
+        .btn-glow:hover::after {
+            transform: translateX(100%);
+        }
+
+        .bg-checkerboard {
+            background-image: linear-gradient(45deg, #111 25%, transparent 25%),
+                              linear-gradient(-45deg, #111 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #111 75%),
+                              linear-gradient(-45deg, transparent 75%, #111 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+            background-color: #060606;
+        }
+
+        /* 隐藏滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+
+<body class="flex flex-col items-center justify-center p-6 relative">
+    <div class="aurora-bg"></div>
+
+    <div class="w-full max-w-4xl flex flex-col gap-6 z-10">
+        <!-- 头部 -->
+        <header class="flex items-center justify-between glass-panel p-6">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-lg shadow-lg shadow-blue-500/30">16</div>
+                <div>
+                    <h1 class="text-lg font-black tracking-wider uppercase">GrayLight Pack Tool</h1>
+                    <p class="text-[10px] text-white/40 uppercase tracking-widest">16-bit TIFF to 8-bit RG-PNG Packer</p>
+                </div>
+            </div>
+            <a href="index.html" class="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                返回实验室
+            </a>
+        </header>
+
+        <!-- 主面板 -->
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 左侧：TIFF 高度图导入 -->
+            <div class="glass-panel p-6 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black uppercase tracking-wider text-blue-400">步骤一：高度图导入 (16-bit TIF)</span>
+                    <span id="tif-status-badge" class="text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-white/40 uppercase tracking-widest">等待导入</span>
+                </div>
+                
+                <div id="tif-dropzone" class="dropzone flex-1 min-h-[220px] rounded-2xl flex flex-col items-center justify-center gap-3 p-6 text-center">
+                    <div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-white/90">拖拽 16-bit TIFF 图像至此</div>
+                        <div class="text-[9px] text-white/30 uppercase mt-1 tracking-widest">支持 .tif / .tiff 格式</div>
+                    </div>
+                </div>
+
+                <div id="tif-info" class="hidden text-xs space-y-2 bg-black/30 p-4 rounded-xl border border-white/5">
+                    <div class="flex justify-between"><span class="opacity-40">文件名:</span><span id="tif-name" class="font-semibold text-white/95 truncate max-w-[200px]"></span></div>
+                    <div class="flex justify-between"><span class="opacity-40">分辨率:</span><span id="tif-res" class="font-semibold text-white/95"></span></div>
+                    <div class="flex justify-between"><span class="opacity-40">位深度:</span><span id="tif-depth" class="font-semibold text-blue-400"></span></div>
+                </div>
+            </div>
+
+            <!-- 右侧：遮罩图导入 (可选) -->
+            <div class="glass-panel p-6 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black uppercase tracking-wider text-purple-400">步骤二（可选）：塞入 B 通道遮罩</span>
+                    <span id="mask-status-badge" class="text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-white/40 uppercase tracking-widest">不合并</span>
+                </div>
+                
+                <div id="mask-dropzone" class="dropzone flex-1 min-h-[220px] rounded-2xl flex flex-col items-center justify-center gap-3 p-6 text-center">
+                    <div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                            <path d="M12 6v12M6 12h12"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-white/90">拖拽 8-bit 遮罩图片至此</div>
+                        <div class="text-[9px] text-white/30 uppercase mt-1 tracking-widest">支持 .png / .jpg / .jpeg</div>
+                    </div>
+                </div>
+
+                <div id="mask-info" class="hidden text-xs space-y-2 bg-black/30 p-4 rounded-xl border border-white/5">
+                    <div class="flex justify-between"><span class="opacity-40">文件名:</span><span id="mask-name" class="font-semibold text-white/95 truncate max-w-[200px]"></span></div>
+                    <div class="flex justify-between"><span class="opacity-40">分辨率:</span><span id="mask-res" class="font-semibold text-white/95"></span></div>
+                    <div class="flex justify-between"><span class="opacity-40">操作:</span><button id="clear-mask" class="text-red-400 hover:text-red-300 font-semibold underline">清除遮罩</button></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 结果与导出 -->
+        <section class="glass-panel p-6 flex flex-col md:flex-row gap-6 items-center">
+            <div class="w-full md:w-48 aspect-square rounded-2xl bg-checkerboard border border-white/10 flex items-center justify-center overflow-hidden relative group">
+                <canvas id="preview-canvas" class="w-full h-full object-contain hidden"></canvas>
+                <div id="preview-placeholder" class="text-[9px] uppercase tracking-widest text-white/20 text-center p-4">渲染预览</div>
+            </div>
+            
+            <div class="flex-1 flex flex-col gap-3 w-full">
+                <h3 class="text-sm font-black uppercase tracking-wider">打包结果生成</h3>
+                <p class="text-xs text-white/50 leading-relaxed">
+                    打包成功后，高度图的高 8 位将存入 <strong class="text-red-400">R (红)</strong> 通道，低 8 位存入 <strong class="text-green-400">G (绿)</strong> 通道。<br>
+                    如果有添加遮罩，遮罩将存入 <strong class="text-blue-400">B (蓝)</strong> 通道，否则 B 通道自动填 0。
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 mt-2">
+                    <button id="btn-pack" disabled class="flex-1 btn-glow py-3 rounded-xl bg-blue-600 disabled:bg-white/5 disabled:text-white/20 disabled:border-transparent text-white font-black text-xs uppercase tracking-widest border border-blue-500/30 flex items-center justify-center gap-2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                        </svg>
+                        开始打包并下载
+                    </button>
+                    <button id="btn-reset" class="px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/80 font-black text-xs uppercase tracking-widest">
+                        重置
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 隐藏的 input 用于选择文件 -->
+    <input type="file" id="tif-file-input" hidden accept=".tif,.tiff">
+    <input type="file" id="mask-file-input" hidden accept="image/*">
+
+    <script>
+        let tifData = null;
+        let maskImg = null;
+
+        const tifDrop = document.getElementById('tif-dropzone');
+        const maskDrop = document.getElementById('mask-dropzone');
+        const tifInput = document.getElementById('tif-file-input');
+        const maskInput = document.getElementById('mask-file-input');
+
+        const tifInfo = document.getElementById('tif-info');
+        const tifName = document.getElementById('tif-name');
+        const tifRes = document.getElementById('tif-res');
+        const tifDepth = document.getElementById('tif-depth');
+        const tifBadge = document.getElementById('tif-status-badge');
+
+        const maskInfo = document.getElementById('mask-info');
+        const maskName = document.getElementById('mask-name');
+        const maskRes = document.getElementById('mask-res');
+        const maskBadge = document.getElementById('mask-status-badge');
+        const clearMaskBtn = document.getElementById('clear-mask');
+
+        const previewCanvas = document.getElementById('preview-canvas');
+        const previewPlaceholder = document.getElementById('preview-placeholder');
+        const btnPack = document.getElementById('btn-pack');
+        const btnReset = document.getElementById('btn-reset');
+
+        // 文件读取与处理
+        tifDrop.onclick = () => tifInput.click();
+        maskDrop.onclick = () => maskInput.click();
+
+        // 拖拽激活效果
+        const bindDragEvents = (el, callback) => {
+            el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-active'); };
+            el.ondragleave = () => el.classList.remove('drag-active');
+            el.ondrop = (e) => {
+                e.preventDefault();
+                el.classList.remove('drag-active');
+                if (e.dataTransfer.files.length > 0) {
+                    callback(e.dataTransfer.files[0]);
+                }
+            };
+        };
+
+        bindDragEvents(tifDrop, handleTifFile);
+        bindDragEvents(maskDrop, handleMaskFile);
+
+        tifInput.onchange = (e) => { if (e.target.files.length > 0) handleTifFile(e.target.files[0]); };
+        maskInput.onchange = (e) => { if (e.target.files.length > 0) handleMaskFile(e.target.files[0]); };
+
+        function handleTifFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    console.log('[TIF] Decoding array buffer...');
+                    const ifds = UTIF.decode(e.target.result);
+                    if (!ifds || ifds.length === 0) throw new Error('无法解析该 TIFF 文件，请确保其为标准 TIFF 格式');
+                    
+                    UTIF.decodeImage(e.target.result, ifds[0]);
+                    
+                    const width = ifds[0].width;
+                    const height = ifds[0].height;
+                    const bitsPerSample = ifds[0].t258 ? ifds[0].t258[0] : 8;
+                    const samplesPerPixel = ifds[0].t277 ? ifds[0].t277[0] : 1;
+
+                    console.log('[TIF Info] width:', width, 'height:', height, 'bits:', bitsPerSample, 'channels:', samplesPerPixel);
+                    
+                    // 核心提取：保留原始 16-bit 精度
+                    let rawData = ifds[0].data;
+                    let uint16Data;
+                    
+                    if (bitsPerSample === 16) {
+                        if (rawData instanceof Uint16Array) {
+                            uint16Data = rawData;
+                        } else if (rawData instanceof Uint8Array) {
+                            uint16Data = new Uint16Array(rawData.buffer, rawData.byteOffset, rawData.byteLength / 2);
+                        } else {
+                            uint16Data = new Uint16Array(rawData);
+                        }
+                    } else {
+                        // 8-bit 的 TIFF 升轨成 16-bit 模拟处理
+                        uint16Data = new Uint16Array(width * height);
+                        if (rawData instanceof Uint8Array) {
+                            for (let i = 0; i < rawData.length; i++) {
+                                uint16Data[i] = rawData[i] << 8;
+                            }
+                        } else {
+                            for (let i = 0; i < rawData.length; i++) {
+                                uint16Data[i] = rawData[i] * 256;
+                            }
+                        }
+                    }
+
+                    // 如果是 RGB/RGBA 16-bit TIFF，做灰度加权平均
+                    if (samplesPerPixel > 1) {
+                        const grayData = new Uint16Array(width * height);
+                        for (let i = 0; i < width * height; i++) {
+                            const r = uint16Data[i * samplesPerPixel];
+                            const g = uint16Data[i * samplesPerPixel + 1];
+                            const b = uint16Data[i * samplesPerPixel + 2];
+                            grayData[i] = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+                        }
+                        uint16Data = grayData;
+                    }
+
+                    tifData = {
+                        width,
+                        height,
+                        data: uint16Data,
+                        name: file.name
+                    };
+
+                    // 更新 UI
+                    tifName.innerText = file.name;
+                    tifRes.innerText = `${width} × ${height}`;
+                    tifDepth.innerText = `${bitsPerSample}-bit (通道数: ${samplesPerPixel})`;
+                    tifInfo.classList.remove('hidden');
+                    tifBadge.innerText = '已就绪';
+                    tifBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 uppercase tracking-widest';
+                    
+                    updatePreviewAndPackState();
+
+                } catch (err) {
+                    console.error('[TIF Error]', err);
+                    alert('TIFF 文件解析失败: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function handleMaskFile(file) {
+            const img = new Image();
+            img.onload = () => {
+                maskImg = img;
+                maskName.innerText = file.name;
+                maskRes.innerText = `${img.width} × ${img.height}`;
+                maskInfo.classList.remove('hidden');
+                maskBadge.innerText = '已合并至 B';
+                maskBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 uppercase tracking-widest';
+                
+                updatePreviewAndPackState();
+            };
+            img.src = URL.createObjectURL(file);
+        }
+
+        clearMaskBtn.onclick = () => {
+            maskImg = null;
+            maskInfo.classList.add('hidden');
+            maskBadge.innerText = '不合并';
+            maskBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-white/40 uppercase tracking-widest';
+            maskInput.value = '';
+            updatePreviewAndPackState();
+        };
+
+        function updatePreviewAndPackState() {
+            if (!tifData) {
+                btnPack.disabled = true;
+                previewCanvas.classList.add('hidden');
+                previewPlaceholder.classList.remove('hidden');
+                return;
+            }
+
+            btnPack.disabled = false;
+            previewCanvas.classList.remove('hidden');
+            previewPlaceholder.classList.add('hidden');
+
+            const w = tifData.width;
+            const h = tifData.height;
+            previewCanvas.width = w;
+            previewCanvas.height = h;
+
+            const ctx = previewCanvas.getContext('2d');
+            const imgData = ctx.createImageData(w, h);
+            
+            // 准备打包数据
+            // 如果有 mask 图像，我们需要在内存中把它拉伸/画到临时 canvas 上获取像素
+            let maskPixels = null;
+            if (maskImg) {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = w;
+                tempCanvas.height = h;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(maskImg, 0, 0, w, h);
+                maskPixels = tempCtx.getImageData(0, 0, w, h).data;
+            }
+
+            const data16 = tifData.data;
+            const dest = imgData.data;
+
+            for (let i = 0; i < w * h; i++) {
+                const val = data16[i];
+                const high = (val >> 8) & 0xFF;
+                const low = val & 0xFF;
+                
+                dest[i * 4 + 0] = high; // R 通道: 高 8 位
+                dest[i * 4 + 1] = low;  // G 通道: 低 8 位
+                
+                if (maskPixels) {
+                    // 使用 mask 像素的亮度（R通道即可）存入 B 通道
+                    dest[i * 4 + 2] = maskPixels[i * 4 + 0];
+                } else {
+                    dest[i * 4 + 2] = 0;    // B 通道: 0
+                }
+                dest[i * 4 + 3] = 255;      // A 通道: 255
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        btnPack.onclick = () => {
+            if (!tifData) return;
+
+            // 获取打包后的图片 Blob
+            previewCanvas.toBlob((blob) => {
+                const a = document.createElement('a');
+                const originalName = tifData.name.substring(0, tifData.name.lastIndexOf('.')) || tifData.name;
+                a.download = `${originalName}_packed.png`;
+                a.href = URL.createObjectURL(blob);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                console.log('[Pack Success] Downloaded: ', a.download);
+            }, 'image/png');
+        };
+
+        btnReset.onclick = () => {
+            tifData = null;
+            maskImg = null;
+            tifInfo.classList.add('hidden');
+            maskInfo.classList.add('hidden');
+            previewCanvas.classList.add('hidden');
+            previewPlaceholder.classList.remove('hidden');
+            btnPack.disabled = true;
+
+            tifBadge.innerText = '等待导入';
+            tifBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-white/40 uppercase tracking-widest';
+            maskBadge.innerText = '不合并';
+            maskBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-white/40 uppercase tracking-widest';
+
+            tifInput.value = '';
+            maskInput.value = '';
+        };
+    </script>
+</body>
+
+</html>
